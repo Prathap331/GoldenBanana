@@ -9,7 +9,7 @@ from typing import List, Optional
 from supabase import create_client, Client
 from datetime import datetime, date
 from uuid import UUID
-
+from pydantic import BaseModel, EmailStr, Field
 # Load environment variables
 load_dotenv()
 
@@ -119,7 +119,8 @@ class Order(BaseModel):
     delivery_address: str
     delivery_expected_date: Optional[date] = None
     created_at: datetime
-    items: List[OrderItem] = []
+    items: List[OrderItem] = Field(default=[], validation_alias="order_items")
+    #items: List[OrderItem] = []
 
     # New fields for Razorpay
     razorpay_order_id: Optional[str] = None
