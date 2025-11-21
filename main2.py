@@ -229,25 +229,29 @@ async def signup(user: UserCreate):
         if res.user:
             # --- LOGIC CHECK: Is this actually a new user? ---
             
-            # 1. Get the 'created_at' time from the user record
-            # (Supabase returns ISO format like "2023-11-21T06:14:33.340884Z")
-            user_created_at = datetime.fromisoformat(res.user.created_at.replace("Z", "+00:00"))
+            user_created_at = res.user.created_at
+
+            # FIX: Check if it's already a datetime object (Supabase client usually does this)
+            if isinstance(user_created_at, str):
+                # If it IS a string, parse it manually
+                user_created_at = datetime.fromisoformat(user_created_at.replace("Z", "+00:00"))
             
-            # 2. Get the current time (in UTC to match Supabase)
+            # 2. Get the current time (in UTC)
             now = datetime.now(timezone.utc)
             
-            # 3. Calculate the difference in seconds
+            # 3. Calculate difference. Ensure both are timezone-aware.
+            if user_created_at.tzinfo is None:
+                user_created_at = user_created_at.replace(tzinfo=timezone.utc)
+                
             seconds_since_creation = (now - user_created_at).total_seconds()
             
-            # 4. If the user was created more than 30 seconds ago, 
-            # they definitely already existed!
+            # 4. If user is older than 30 seconds, they are an existing user
             if seconds_since_creation > 30:
                  raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT, 
                     detail="Account already exists. Please login instead."
                 )
 
-            # If we get here, it's a brand new user (created < 30s ago)
             return UserResponse(
                 id=res.user.id,
                 email=res.user.email,
@@ -257,13 +261,12 @@ async def signup(user: UserCreate):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create user")
 
     except Exception as e:
-        # If we manually raised the 409 above, allow it to pass through
+        # Allow manual HTTPExceptions (like our 409) to pass through
         if isinstance(e, HTTPException):
             raise e
             
         # Catch other unexpected errors
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
 @app.post("/auth/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
