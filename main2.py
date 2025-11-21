@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime, date, timezone
 from uuid import UUID
 import uuid
-
+from fastapi import FastAPI, Depends, HTTPException, status, Response
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
