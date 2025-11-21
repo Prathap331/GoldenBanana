@@ -14,6 +14,12 @@ from datetime import datetime, date, timezone
 from uuid import UUID
 import uuid
 
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.lib import colors
+import io
+
 # Load environment variables
 load_dotenv()
 
@@ -179,6 +185,138 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+
+
+
+
+
+
+def generate_pdf_invoice(order_data, user_data, items_data):
+    """
+    Generates a PDF invoice in memory and returns the bytes.
+    """
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    # --- Header ---
+    # Company Name
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 50, "Golden Banana")
+    
+    # Invoice Label
+    c.setFont("Helvetica", 12)
+    c.drawRightString(width - 50, height - 50, "TAX INVOICE")
+
+    # Company Details
+    c.setFont("Helvetica", 10)
+    c.drawString(50, height - 70, "123 Fruit Market, Banana Street")
+    c.drawString(50, height - 85, "Hyderabad, Telangana, 500081")
+    c.drawString(50, height - 100, "GSTIN: 36ABCDE1234F1Z5")
+    c.drawString(50, height - 115, "Contact: support@goldenbanana.com")
+
+    c.line(50, height - 130, width - 50, height - 130)
+
+    # --- Invoice Details ---
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, height - 150, f"Invoice #: INV-{order_data['order_id']}")
+    
+    # Format Date
+    try:
+        dt = datetime.fromisoformat(order_data['created_at'].replace('Z', '+00:00'))
+        date_str = dt.strftime("%d %b %Y")
+    except:
+        date_str = str(datetime.now().date())
+        
+    c.drawString(300, height - 150, f"Invoice Date: {date_str}")
+    
+    c.drawString(50, height - 165, f"Order ID: {order_data['razorpay_order_id'] or 'N/A'}")
+
+    # --- Bill To / Ship To ---
+    y = height - 200
+    c.drawString(50, y, "Bill To / Ship To:")
+    c.setFont("Helvetica", 10)
+    y -= 15
+    c.drawString(50, y, user_data.get('full_name') or "Customer")
+    y -= 15
+    
+    # Address Parsing (Simple split by newline if available, or just raw)
+    address_lines = user_data.get('address_line1', '').split('\n')
+    for line in address_lines:
+        c.drawString(50, y, line)
+        y -= 12
+    
+    c.drawString(50, y, f"{user_data.get('city', '')}, {user_data.get('state', '')} - {user_data.get('postal_code', '')}")
+    y -= 15
+    c.drawString(50, y, f"Phone: {user_data.get('phone_number', '')}")
+
+    # --- Items Table Header ---
+    y = height - 300
+    c.line(50, y, width - 50, y)
+    y -= 15
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, y, "Item")
+    c.drawString(300, y, "Rate")
+    c.drawString(380, y, "Qty")
+    c.drawString(450, y, "Total")
+    y -= 10
+    c.line(50, y, width - 50, y)
+
+    # --- Items Rows ---
+    c.setFont("Helvetica", 10)
+    y -= 20
+    
+    total_qty = 0
+    
+    for item in items_data:
+        name = item.get('products', {}).get('product_name', 'Unknown Product')
+        price = item['price_per_unit']
+        qty = item['quantity']
+        subtotal = item['subtotal']
+        total_qty += qty
+
+        c.drawString(50, y, name[:40]) # Truncate long names
+        c.drawString(300, y, f"Rs. {price}")
+        c.drawString(380, y, str(qty))
+        c.drawString(450, y, f"Rs. {subtotal}")
+        y -= 20
+
+    c.line(50, y, width - 50, y)
+
+    # --- Totals ---
+    y -= 30
+    c.setFont("Helvetica-Bold", 12)
+    c.drawRightString(width - 50, y, f"Grand Total: Rs. {order_data['total_amount']}")
+    
+    # --- Footer ---
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawCentredString(width / 2, 50, "Thank you for shopping with Golden Banana!")
+    c.drawCentredString(width / 2, 35, "This is a computer generated invoice.")
+
+    c.save()
+    buffer.seek(0)
+    return buffer.read()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # --- Authentication ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -584,3 +722,39 @@ async def verify_payment(
         return {"status": "success", "message": "Payment verified and order confirmed"}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB update failed: {e}")
+    
+
+
+
+
+# --- NEW ENDPOINT: Download Invoice ---
+@app.get("/orders/{order_id}/invoice")
+async def get_order_invoice(order_id: int, current_user: UserResponse = Depends(get_current_user)):
+    """
+    Generate and download a PDF invoice for a specific order.
+    """
+    try:
+        # 1. Fetch Order details (including Items)
+        order_res = supabase.table("orders").select("*, order_items(*, products(*))").eq("order_id", order_id).eq("user_id", str(current_user.id)).execute()
+        
+        if not order_res.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+        
+        order_data = order_res.data[0]
+        items_data = order_data.get('order_items', [])
+
+        # 2. Fetch User Profile (for Address)
+        user_res = supabase.table("profiles").select("*").eq("id", str(current_user.id)).single().execute()
+        user_data = user_res.data or {}
+
+        # 3. Generate PDF
+        pdf_bytes = generate_pdf_invoice(order_data, user_data, items_data)
+
+        # 4. Return as downloadable file
+        headers = {
+            'Content-Disposition': f'attachment; filename="invoice_{order_id}.pdf"'
+        }
+        return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
