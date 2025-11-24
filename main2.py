@@ -628,20 +628,27 @@ async def get_me(current_user: UserResponse = Depends(get_current_user)):
 async def forgot_password(data: UserForgotPassword):
     """
     Trigger a password reset email via Supabase.
-    The email will contain a link redirecting to your frontend.
-    IMPORTANT: Configure the Redirect URL in Supabase Dashboard -> Authentication -> URL Configuration.
+    Handles rate limiting errors gracefully.
     """
     try:
-        # Replace 'YOUR_FRONTEND_RESET_URL' with the actual URL your frontend uses
-        # Example: https://goldenbanana.vercel.app/reset-password
-        # For now, we use a placeholder or assume Supabase default if omitted.
         # Ideally, pass options={"redirect_to": "https://your-frontend.com/reset-password"}
         supabase.auth.reset_password_email(data.email)
         return {"message": "Password reset email sent if account exists"}
+        
     except Exception as e:
-        # We typically don't want to reveal if the email failed (security), 
-        # but for debugging we return the error string.
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        
+        # Check for Rate Limit or Server errors from Supabase email service
+        if "556" in error_msg or "429" in error_msg:
+             raise HTTPException(
+                 status_code=status.HTTP_429_TOO_MANY_REQUESTS, 
+                 detail="Too many email requests. Please wait a few minutes before trying again."
+             )
+             
+        # For security, we generally don't want to tell the user if the email failed 
+        # (unless it's a rate limit), so we often return success or a generic error.
+        # But for dev debugging, we return the detail.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Email service error: {error_msg}")
 
 
 
