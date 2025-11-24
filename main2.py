@@ -643,6 +643,10 @@ async def forgot_password(data: UserForgotPassword):
         # but for debugging we return the error string.
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+
+
+
+'''
 @app.post("/auth/reset-password")
 async def reset_password(
     data: UserResetPassword, 
@@ -660,7 +664,30 @@ async def reset_password(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+'''
 
+@app.post("/auth/reset-password")
+async def reset_password(
+    data: UserResetPassword, 
+    token: str = Depends(oauth2_scheme) # Grab the raw token string
+):
+    """
+    Update the password for the logged-in user.
+    This endpoint requires the Bearer Token obtained from the password reset email link.
+    """
+    try:
+        # 1. Create a temporary Supabase client for THIS specific user
+        # We use the raw token passed in the Authorization header
+        user_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        user_client.auth.set_session(token, "refresh_token_placeholder") # Set session using access token
+
+        # 2. Update the user's password using this authenticated client
+        # Since we are 'logged in' as the user via the client, we can just call update_user
+        user_client.auth.update_user({"password": data.new_password})
+        
+        return {"message": "Password updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 
