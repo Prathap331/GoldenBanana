@@ -95,7 +95,18 @@ class Product(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+    # NEW: Size Field
+    size: Optional[str] = None
     class Config: from_attributes = True
+
+
+
+# NEW: Schema for updating product details
+class ProductUpdate(BaseModel):
+    size: Optional[str] = None
+    # You can add other fields here later if you want to update price/stock etc.
 
 # Delivery Partner Schemas
 class DeliveryPartner(BaseModel):
@@ -766,6 +777,50 @@ async def get_product(product_id: int):
         return res.data
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+
+
+
+
+
+
+# --- NEW: Update Product Size Endpoint ---
+@app.put("/products/{product_id}", response_model=Product)
+async def update_product(
+    product_id: int, 
+    product_update: ProductUpdate,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Update product details (e.g., Size).
+    Authenticated endpoint.
+    """
+    try:
+        # Only allow 'size' to be updated for now based on schema
+        update_data = product_update.model_dump(exclude_unset=True)
+        if not update_data:
+             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No update data provided")
+
+        update_data["updated_at"] = datetime.now().isoformat()
+
+        # Execute Update
+        res = supabase.table("products").update(update_data).eq("product_id", product_id).execute()
+        
+        if not res.data or len(res.data) == 0:
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found or update failed")
+
+        return res.data[0]
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+
+
+
+
+
 
 # --- Delivery Partner Endpoints ---
 
