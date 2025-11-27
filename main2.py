@@ -116,6 +116,17 @@ class ProductUpdate(BaseModel):
     color: Optional[str] = None # NEW: Updatable Color
     # You can add other fields here later if you want to update price/stock etc.
 
+
+
+
+# NEW: Simple Product schema for nested response
+class ProductSimple(BaseModel):
+    product_name: str
+    image_url: Optional[str] = None
+    class Config: from_attributes = True
+
+
+
 # Delivery Partner Schemas
 class DeliveryPartner(BaseModel):
     delivery_partner_id: int
@@ -144,6 +155,9 @@ class OrderItem(BaseModel):
 
     size: Optional[str] = None 
     color: Optional[str] = None # NEW: Saved color
+
+    # UPDATED: Nested product info
+    products: Optional[ProductSimple] = None 
     class Config: from_attributes = True
 
 class OrderCreate(BaseModel):
@@ -965,6 +979,10 @@ async def create_order(
             supabase.table("orders").delete().eq("order_id", new_order_id).execute()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Razorpay creation failed: {e}")
 
+
+
+
+    '''
     # 7. Return response
     final_order = Order.model_validate(new_order)
     final_order.items = [OrderItem.model_validate(item) for item in new_items]
@@ -973,6 +991,19 @@ async def create_order(
         final_order.razorpay_order_id = razorpay_order_id
         final_order.razorpay_key_id = RAZORPAY_KEY_ID # Send public key
 
+    return final_order'''
+    # FIX: Fetch the order AGAIN to include nested product details for the response
+    # This step was previously returning raw dict, skipping model validation and Razorpay key injection.
+    full_order_res = supabase.table("orders").select("*, order_items(*, products(product_name, image_url))").eq("order_id", new_order_id).single().execute()
+    
+    # 1. Convert the DB dictionary to your Pydantic Model
+    final_order = Order.model_validate(full_order_res.data)
+    
+    # 2. Inject Razorpay keys if they exist (since they are env vars, not in DB)
+    if razorpay_order_id:
+        final_order.razorpay_order_id = razorpay_order_id
+        final_order.razorpay_key_id = RAZORPAY_KEY_ID 
+
     return final_order
 
 @app.get("/orders/me", response_model=List[Order])
@@ -980,13 +1011,20 @@ async def get_my_orders(current_user: UserResponse = Depends(get_current_user)):
     try:
         res = supabase.table("orders").select("*, order_items(*)").eq("user_id", str(current_user.id)).order("created_at", desc=True).execute()
         return res.data
+    
+        
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @app.get("/orders/me/{order_id}", response_model=Order)
 async def get_my_single_order(order_id: int, current_user: UserResponse = Depends(get_current_user)):
     try:
+        '''
         res = supabase.table("orders").select("*, order_items(*)").eq("user_id", str(current_user.id)).eq("order_id", order_id).single().execute()
+        if not res.data: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+        return res.data'''
+        # UPDATED QUERY: Fetch nested products(product_name, image_url)
+        res = supabase.table("orders").select("*, order_items(*, products(product_name, image_url))").eq("user_id", str(current_user.id)).eq("order_id", order_id).single().execute()
         if not res.data: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         return res.data
     except Exception as e:
