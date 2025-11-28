@@ -19,7 +19,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
 import io
-
+import random
 # Load environment variables
 load_dotenv()
 
@@ -196,6 +196,8 @@ class Order(BaseModel):
     # NEW: Contest ID Field
     contest_id: Optional[str] = None
 
+
+    lucky_number: Optional[str] = None # NEW: Lucky Number field
      # NEW: Return this in the response
     opt_out_delivery: bool
 
@@ -244,127 +246,13 @@ class Token(BaseModel):
 
 
 
-'''
 
 
 
 
-def generate_pdf_invoice(order_data, user_data, items_data):
-    """
-    Generates a PDF invoice in memory and returns the bytes.
-    """
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
 
-    # --- Header ---
-    # Company Name
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(50, height - 50, "Golden Banana")
-    
-    # Invoice Label
-    c.setFont("Helvetica", 12)
-    c.drawRightString(width - 50, height - 50, "TAX INVOICE")
-
-    # Company Details
-    c.setFont("Helvetica", 10)
-    c.drawString(50, height - 70, "123 Fruit Market, Banana Street")
-    c.drawString(50, height - 85, "Hyderabad, Telangana, 500081")
-    c.drawString(50, height - 100, "GSTIN: 36ABCDE1234F1Z5")
-    c.drawString(50, height - 115, "Contact: support@goldenbanana.com")
-
-    c.line(50, height - 130, width - 50, height - 130)
-
-    # --- Invoice Details ---
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(50, height - 150, f"Invoice #: INV-{order_data['order_id']}")
-    
-    # Format Date
-    try:
-        dt = datetime.fromisoformat(order_data['created_at'].replace('Z', '+00:00'))
-        date_str = dt.strftime("%d %b %Y")
-    except:
-        date_str = str(datetime.now().date())
-        
-    c.drawString(300, height - 150, f"Invoice Date: {date_str}")
-    
-    c.drawString(50, height - 165, f"Order ID: {order_data['razorpay_order_id'] or 'N/A'}")
-
-    # --- Bill To / Ship To ---
-    y = height - 200
-    c.drawString(50, y, "Bill To / Ship To:")
-    c.setFont("Helvetica", 10)
-    y -= 15
-    c.drawString(50, y, user_data.get('full_name') or "Customer")
-    y -= 15
-    
-    # Address Parsing (Simple split by newline if available, or just raw)
-    address_lines = user_data.get('address_line1', '').split('\n')
-    for line in address_lines:
-        c.drawString(50, y, line)
-        y -= 12
-    
-    c.drawString(50, y, f"{user_data.get('city', '')}, {user_data.get('state', '')} - {user_data.get('postal_code', '')}")
-    y -= 15
-    c.drawString(50, y, f"Phone: {user_data.get('phone_number', '')}")
-
-    # --- Items Table Header ---
-    y = height - 300
-    c.line(50, y, width - 50, y)
-    y -= 15
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(50, y, "Item")
-    c.drawString(300, y, "Rate")
-    c.drawString(380, y, "Qty")
-    c.drawString(450, y, "Total")
-    y -= 10
-    c.line(50, y, width - 50, y)
-
-    # --- Items Rows ---
-    c.setFont("Helvetica", 10)
-    y -= 20
-    
-    total_qty = 0
-    
-    for item in items_data:
-        name = item.get('products', {}).get('product_name', 'Unknown Product')
-        price = item['price_per_unit']
-        qty = item['quantity']
-        subtotal = item['subtotal']
-        total_qty += qty
-
-        c.drawString(50, y, name[:40]) # Truncate long names
-        c.drawString(300, y, f"Rs. {price}")
-        c.drawString(380, y, str(qty))
-        c.drawString(450, y, f"Rs. {subtotal}")
-        y -= 20
-
-    c.line(50, y, width - 50, y)
-
-    # --- Totals ---
-    y -= 30
-    c.setFont("Helvetica-Bold", 12)
-    c.drawRightString(width - 50, y, f"Grand Total: Rs. {order_data['total_amount']}")
-    
-    # --- Footer ---
-    c.setFont("Helvetica-Oblique", 8)
-    c.drawCentredString(width / 2, 50, "Thank you for shopping with Golden Banana!")
-    c.drawCentredString(width / 2, 35, "This is a computer generated invoice.")
-
-    c.save()
-    buffer.seek(0)
-    return buffer.read()
 
 '''
-
-
-
-
-
-
-
-
-
 
 
 def generate_pdf_invoice(order_data, user_data, items_data):
@@ -517,7 +405,146 @@ def generate_pdf_invoice(order_data, user_data, items_data):
     c.save()
     buffer.seek(0)
     return buffer.read()
+'''
 
+
+def generate_pdf_invoice(order_data, user_data, items_data):
+    """
+    Generates a PDF invoice in memory and returns the bytes.
+    """
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    # --- Header ---
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 50, "Golden Banana")
+    
+    c.setFont("Helvetica", 12)
+    c.drawRightString(width - 50, height - 50, "TAX INVOICE")
+
+    c.setFont("Helvetica", 10)
+    c.drawString(50, height - 70, "123 Fruit Market, Banana Street")
+    c.drawString(50, height - 85, "Hyderabad, Telangana, 500081")
+    c.drawString(50, height - 100, "GSTIN: 36ABCDE1234F1Z5")
+    c.drawString(50, height - 115, "Contact: support@goldenbanana.com")
+
+    c.line(50, height - 130, width - 50, height - 130)
+
+    # --- Invoice Details ---
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, height - 150, f"Invoice #: INV-{order_data['order_id']}")
+    
+    try:
+        dt = datetime.fromisoformat(order_data['created_at'].replace('Z', '+00:00'))
+        date_str = dt.strftime("%d %b %Y")
+    except:
+        date_str = str(datetime.now().date())
+        
+    c.drawString(300, height - 150, f"Invoice Date: {date_str}")
+    c.drawString(50, height - 165, f"Order ID: {order_data.get('razorpay_order_id') or 'N/A'}")
+
+    # --- Bill To / Ship To ---
+    y = height - 200
+    c.drawString(50, y, "Bill To / Ship To:")
+    c.setFont("Helvetica", 10)
+    y -= 15
+    c.drawString(50, y, user_data.get('full_name') or "Customer")
+    y -= 15
+    
+    address_lines = user_data.get('address_line1', '').split('\n')
+    for line in address_lines:
+        c.drawString(50, y, line)
+        y -= 12
+    
+    c.drawString(50, y, f"{user_data.get('city', '')}, {user_data.get('state', '')} - {user_data.get('postal_code', '')}")
+    y -= 15
+    c.drawString(50, y, f"Phone: {user_data.get('phone_number', '')}")
+
+    # --- Items Table Header ---
+    y = height - 300
+    c.line(50, y, width - 50, y)
+    y -= 15
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, y, "Item")
+    c.drawString(300, y, "Rate")
+    c.drawString(380, y, "Qty")
+    c.drawString(450, y, "Total")
+    y -= 10
+    c.line(50, y, width - 50, y)
+
+    # --- Items Rows ---
+    c.setFont("Helvetica", 10)
+    y -= 20
+    
+    for item in items_data:
+        name = item.get('products', {}).get('product_name', 'Unknown Product')
+        price = item['price_per_unit']
+        qty = item['quantity']
+        subtotal = item['subtotal']
+
+        c.drawString(50, y, name[:40]) 
+        c.drawString(300, y, f"Rs. {price}")
+        c.drawString(380, y, str(qty))
+        c.drawString(450, y, f"Rs. {subtotal}")
+        y -= 20
+
+    c.line(50, y, width - 50, y)
+
+    # --- Totals ---
+    grand_total = float(order_data['total_amount'])
+    tax_rate = 0.05
+    base_amount = grand_total / (1 + tax_rate)
+    tax_amount = grand_total - base_amount
+
+    y -= 10
+    c.setFont("Helvetica", 10)
+    
+    c.drawRightString(width - 50, y, f"Subtotal: Rs. {base_amount:.2f}")
+    y -= 15
+    c.drawRightString(width - 50, y, f"CGST/SGST (5%): Rs. {tax_amount:.2f}")
+    y -= 20 
+    
+    c.setFont("Helvetica-Bold", 14)
+    c.drawRightString(width - 50, y, f"Grand Total: Rs. {grand_total:.2f}")
+    
+    # --- Notes Section ---
+    y -= 40
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, y, "Notes:")
+    
+    c.setFont("Helvetica", 10)
+    y -= 15
+    contest_id = order_data.get('contest_id', 'Not Assigned')
+    c.drawString(50, y, f"Contest ID: {contest_id}")
+    y -= 15
+    
+    # --- NEW: Lucky Number ---
+    lucky_number = order_data.get('lucky_number', 'Not Assigned')
+    c.drawString(50, y, f"Lucky Number: {lucky_number}")
+    y -= 15
+    c.drawString(50, y, "Keep these numbers safe for future rewards!")
+
+    # --- Terms and Conditions ---
+    y -= 40
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, y, "Terms & Conditions:")
+    
+    c.setFont("Helvetica", 9)
+    y -= 15
+    c.drawString(50, y, "1. Goods once sold will not be taken back.")
+    y -= 12
+    c.drawString(50, y, "2. Interest @ 18% p.a. will be charged if bill is not paid on due date.")
+    y -= 12
+    c.drawString(50, y, "3. All disputes are subject to Hyderabad jurisdiction only.")
+
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawCentredString(width / 2, 50, "Thank you for shopping with Golden Banana!")
+    c.drawCentredString(width / 2, 35, "This is a computer generated invoice.")
+
+    c.save()
+    buffer.seek(0)
+    return buffer.read()
 
 
 
@@ -960,6 +987,9 @@ async def create_order(
     razorpay_order_id = None
     # --- GENERATE HASH HERE ---
     contest_id = uuid.uuid4().hex
+
+    # NEW: Generate Random 7-digit Lucky Number
+    lucky_number = f"{random.randint(0, 9999999):07d}" # e.g., "0045123"
     
     try:
         order_data = {
@@ -970,7 +1000,7 @@ async def create_order(
             "payment_status": "Pending",
             "order_status": "Pending",
             "contest_id": contest_id ,# Save to DB
-
+            "lucky_number": lucky_number, # NEW: Save to DB
             # NEW: Save the opt-out preference
             "opt_out_delivery": order.opt_out_delivery 
         }
@@ -1003,7 +1033,7 @@ async def create_order(
                     "internal_order_id": new_order_id,
                     "user_id": str(current_user.id),
                     "contest_id": contest_id, # Save to DB
-
+                    "lucky_number": lucky_number, # NEW: Save to DB
                     "opt_out_delivery": str(order.opt_out_delivery)
                 }
             }
