@@ -1,0 +1,35 @@
+--- Environment ---
+
+Ignore the virtual environment folder
+
+venv/
+/venv/
+*.venv
+.venv
+
+--- Secrets ---
+
+Ignore the environment variables file
+
+.env
+*.env
+
+--- Python ---
+
+Ignore Python bytecode
+
+pycache/
+*.pyc
+*.pyo
+*.pyd
+
+--- IDEs & Editors ---
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+--- Other ---
+
+.DS_Store
