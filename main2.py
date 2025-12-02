@@ -84,7 +84,8 @@ class Profile(ProfileBase):
 
 # Product Schemas
 class Product(BaseModel):
-    product_id: int
+    product_id: 
+    base_product_id:
     product_name: str
     category: Optional[str] = None
     description: Optional[str] = None
