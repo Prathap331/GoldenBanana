@@ -121,11 +121,11 @@ class Product(BaseModel):
 # UPDATED: Product Update Schema
 class ProductUpdate(BaseModel):
     sizes: Optional[List[str]] = None
-    colors: Optional[List[str]] = None
+    color: Optional[str] = None
     #images: Optional[List[str]] = None
 
     # UPDATED: Allow updating the complex image structure
-    images: Optional[Dict[str, List[str]]] = None
+    images: Optional[List[str]] = None
 
     
 
@@ -859,6 +859,32 @@ async def get_product(product_id: int):
         return res.data
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@app.get("/products/base/{base_product_id}", response_model=List[Product])
+async def get_products_by_base_id(base_product_id: int):
+    try:
+        res = (
+            supabase.table("products")
+            .select("*")
+            .eq("base_product_id", base_product_id)
+            .eq("is_active", True)
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        if not res.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No variants found for this base product"
+            )
+
+        return res.data
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 
