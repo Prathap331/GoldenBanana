@@ -793,11 +793,9 @@ async def reset_password(
 
 
 # --- Profile Endpoints ---
-
 @app.get("/profiles/me", response_model=Profile)
 async def get_my_profile(current_user: UserResponse = Depends(get_current_user)):
     try:
-        # Try to fetch profile
         res = (
             supabase.table("profiles")
             .select("*")
@@ -806,42 +804,28 @@ async def get_my_profile(current_user: UserResponse = Depends(get_current_user))
             .execute()
         )
 
-        # -----------------------------
-        # CASE 1 — Profile Exists → Return it
-        # -----------------------------
-        if res.data:
-            return res.data
+        if not res.data:
+            return {
+                "id": current_user.id,
+                "full_name": None,
+                "phone_number": None,
+                "address_line1": None,
+                "address_line2": None,
+                "city": None,
+                "state": None,
+                "postal_code": None,
+                "country": None,
+                "account_status": "active",
+                "updated_at": datetime.utcnow(),
+            }
 
-        # -----------------------------
-        # CASE 2 — Profile Missing → Auto-create it
-        # This fixes ALL random 500 / missing-profile issues
-        # -----------------------------
-        default_profile = {
-            "id": str(current_user.id),
-            "full_name": None,
-            "phone_number": None,
-            "address_line1": None,
-            "address_line2": None,
-            "city": None,
-            "state": None,
-            "postal_code": None,
-            "country": None,
-            "account_status": "active",
-            "updated_at": datetime.utcnow().isoformat(),  # MUST be string
-        }
+        return res.data
 
-        # Insert new profile row
-        supabase.table("profiles").insert(default_profile).execute()
-
-        # Return the newly created profile
-        return default_profile
-
-    except Exception:
-        # Safe fallback — avoids exposing internal Supabase errors
+    except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail="Unable to load profile. Please try again."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
+
 
 
 
