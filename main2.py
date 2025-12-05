@@ -510,7 +510,7 @@ def generate_pdf_invoice(order_data, user_data, items_data):
     tax_rate = 0.05
     tax_amount = base_amount * tax_rate
     grand_total = base_amount + tax_amount
-
+    # total_amount = grand_total
     y -= 10
     c.setFont("Helvetica", 10)
     
@@ -1049,7 +1049,7 @@ async def create_order(
     try:
         order_data = {
             "user_id": str(current_user.id),
-            "total_amount": total_amount,
+            "total_amount": total_amount * 0.05,
             "payment_method": order.payment_method,
             "delivery_address": delivery_address,
             "payment_status": "Pending",
@@ -1081,7 +1081,7 @@ async def create_order(
         try:
             # Amount is in paisa (100 paisa = 1 Rupee)
             rzp_order_data = {
-                "amount": int(total_amount * 100), 
+                "amount": float(total_amount * 100 * 0.05), 
                 "currency": "INR",
                 "receipt": f"order_rcptid_{new_order_id}",
                 "notes": {
